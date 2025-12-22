@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Recon from "@/pages/Recon";
+import Enumeration from "@/pages/Enumeration";
 import Mobile from "@/pages/Mobile";
 import Malware from "@/pages/Malware";
 import Chat from "@/pages/Chat";
@@ -25,6 +26,7 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/recon" element={<Recon />} />
+            <Route path="/enumeration" element={<Enumeration />} />
             <Route path="/mobile" element={<Mobile />} />
             <Route path="/malware" element={<Malware />} />
             <Route path="/chat" element={<Chat />} />

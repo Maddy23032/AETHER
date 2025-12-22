@@ -8,6 +8,7 @@ import {
   Bot,
   Settings,
   Shield,
+  Search,
 } from "lucide-react";
 import {
   Sidebar,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { title: "Mission Control", href: "/dashboard", icon: LayoutDashboard },
   { title: "Web Recon", href: "/recon", icon: Globe },
+  { title: "Enumeration", href: "/enumeration", icon: Search },
   { title: "Mobile Security", href: "/mobile", icon: Smartphone },
   { title: "Malware Lab", href: "/malware", icon: Bug },
   { title: "Intelligence", href: "/chat", icon: Bot },

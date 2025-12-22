@@ -4,6 +4,10 @@
 
 const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// API base URLs - exported for use in other services (Enumeration/Scan pages)
+export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+export const WS_BASE_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
+
 // Custom API URL storage
 let customApiUrl: string | null = null;
 
@@ -122,4 +126,29 @@ export async function checkApiHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Generic fetch wrapper with error handling (for Enumeration/Scan pages)
+ */
+export async function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+
+  return response.json();
 }

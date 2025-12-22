@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  scanner:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://aether:aether@db:5432/aether
+      - REDIS_URL=redis://redis:6379/0
+      - CORS_ORIGINS=http://localhost:8080,http://localhost:3000
+      - SCAN_RATE_LIMIT_MS=500
+      - MAX_CONCURRENT_SCANS=5
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./app:/app/app:ro
+    networks:
+      - aether-network
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=aether
+      - POSTGRES_PASSWORD=aether
+      - POSTGRES_DB=aether
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - aether-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - aether-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  aether-network:
+    driver: bridge
