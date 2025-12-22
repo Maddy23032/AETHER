@@ -56,16 +56,6 @@ export const RECON_TOOLS: ReconTool[] = [
     estimatedTime: '60-300s',
   },
   {
-    id: 'dirsearch',
-    name: 'DirSearch',
-    description: 'Web path discovery and brute-forcing',
-    category: 'directory',
-    endpoint: '/api/recon/dirsearch',
-    icon: 'FolderSearch',
-    enabled: true,
-    estimatedTime: '30-120s',
-  },
-  {
     id: 'gobuster',
     name: 'Gobuster',
     description: 'Directory/DNS/VHost busting tool',

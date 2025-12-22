@@ -71,7 +71,7 @@ const SCAN_PRESETS = {
   vuln: {
     name: "Vulnerability Focus",
     description: "Focus on vulnerability detection",
-    tools: ["nmap", "nikto", "dirsearch", "gobuster"] as ToolId[],
+    tools: ["nmap", "nikto", "gobuster"] as ToolId[],
   },
   osint: {
     name: "OSINT Focus",
