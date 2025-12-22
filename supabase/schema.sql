@@ -7,18 +7,23 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Create enum types
 CREATE TYPE scan_status AS ENUM ('pending', 'running', 'completed', 'failed', 'cancelled');
 CREATE TYPE severity_level AS ENUM ('critical', 'high', 'medium', 'low', 'info');
+CREATE TYPE scan_type AS ENUM ('enumeration', 'recon');
+CREATE TYPE recon_log_type AS ENUM ('info', 'success', 'warning', 'error');
+CREATE TYPE finding_status AS ENUM ('open', 'resolved', 'informational', 'fixed', 'false-positive');
 
 -- Create scans table
 CREATE TABLE scans (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     target_url TEXT NOT NULL,
     status scan_status DEFAULT 'pending',
+    scan_type scan_type DEFAULT 'enumeration',
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     config JSONB DEFAULT '{}',
     stats JSONB,
+    parameters JSONB DEFAULT '{}',
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
@@ -139,3 +144,80 @@ SELECT
 FROM scans s
 LEFT JOIN vulnerabilities v ON v.scan_id = s.id
 GROUP BY s.id;
+
+-- ============================================================================
+-- RECON SCANS SCHEMA
+-- ============================================================================
+
+-- Create scan type enum
+CREATE TYPE scan_type AS ENUM ('enumeration', 'recon');
+
+-- Add scan_type to scans table
+ALTER TABLE scans ADD COLUMN IF NOT EXISTS scan_type scan_type DEFAULT 'enumeration';
+
+-- Create recon_logs table for storing console logs
+CREATE TABLE IF NOT EXISTS recon_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scan_id UUID REFERENCES scans(id) ON DELETE CASCADE,
+    tool TEXT NOT NULL,
+    log_type TEXT NOT NULL CHECK (log_type IN ('info', 'success', 'warning', 'error')),
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create recon_findings table for storing scan findings
+CREATE TABLE IF NOT EXISTS recon_findings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scan_id UUID REFERENCES scans(id) ON DELETE CASCADE,
+    tool TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('critical', 'high', 'medium', 'low', 'info')),
+    name TEXT NOT NULL,
+    description TEXT,
+    endpoint TEXT,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'informational')),
+    raw_data TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create recon_results table for storing tool-specific results
+CREATE TABLE IF NOT EXISTS recon_results (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scan_id UUID REFERENCES scans(id) ON DELETE CASCADE,
+    tool TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('success', 'error')),
+    execution_time TEXT,
+    parameters JSONB DEFAULT '{}',
+    raw_output TEXT,
+    parsed_results JSONB DEFAULT '{}',
+    errors TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create indexes for recon tables
+CREATE INDEX IF NOT EXISTS idx_recon_logs_scan_id ON recon_logs(scan_id);
+CREATE INDEX IF NOT EXISTS idx_recon_findings_scan_id ON recon_findings(scan_id);
+CREATE INDEX IF NOT EXISTS idx_recon_findings_severity ON recon_findings(severity);
+CREATE INDEX IF NOT EXISTS idx_recon_results_scan_id ON recon_results(scan_id);
+CREATE INDEX IF NOT EXISTS idx_scans_scan_type ON scans(scan_type);
+
+-- RLS for recon tables
+ALTER TABLE recon_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recon_findings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recon_results ENABLE ROW LEVEL SECURITY;
+
+-- Anonymous access policies for recon tables (dev)
+CREATE POLICY "Allow anonymous access to recon_logs"
+    ON recon_logs FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Allow anonymous access to recon_findings"
+    ON recon_findings FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Allow anonymous access to recon_results"
+    ON recon_results FOR ALL
+    USING (true)
+    WITH CHECK (true);
+

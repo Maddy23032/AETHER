@@ -9,6 +9,13 @@ import type {
   Vulnerability,
   VulnerabilityInsert,
   ScanStats,
+  ReconLog,
+  ReconLogInsert,
+  ReconFinding,
+  ReconFindingInsert,
+  ReconResult,
+  ReconResultInsert,
+  ScanType,
 } from "@/types/database";
 
 /**
@@ -211,4 +218,209 @@ export async function getVulnerabilityStats(): Promise<{
     total: data?.length || 0,
     bySeverity,
   };
+}
+
+// ============================================================================
+// RECON SCAN FUNCTIONS
+// ============================================================================
+
+/**
+ * Save a recon scan to the database
+ */
+export async function saveReconScan(
+  target: string,
+  selectedTools: string[]
+): Promise<Scan> {
+  const { data, error } = await supabase
+    .from("scans")
+    .insert({
+      target_url: target,
+      status: "running",
+      scan_type: "recon" as ScanType,
+      started_at: new Date().toISOString(),
+      parameters: { selected_tools: selectedTools },
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to save recon scan: ${error.message}`);
+  return data;
+}
+
+/**
+ * Save recon logs to the database
+ */
+export async function saveReconLogs(logs: ReconLogInsert[]): Promise<ReconLog[]> {
+  if (logs.length === 0) return [];
+  
+  const { data, error } = await supabase
+    .from("recon_logs")
+    .insert(logs)
+    .select();
+
+  if (error) throw new Error(`Failed to save recon logs: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Save recon findings to the database
+ */
+export async function saveReconFindings(findings: ReconFindingInsert[]): Promise<ReconFinding[]> {
+  if (findings.length === 0) return [];
+  
+  const { data, error } = await supabase
+    .from("recon_findings")
+    .insert(findings)
+    .select();
+
+  if (error) throw new Error(`Failed to save recon findings: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Save recon results to the database
+ */
+export async function saveReconResults(results: ReconResultInsert[]): Promise<ReconResult[]> {
+  if (results.length === 0) return [];
+  
+  const { data, error } = await supabase
+    .from("recon_results")
+    .insert(results)
+    .select();
+
+  if (error) throw new Error(`Failed to save recon results: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Get the last scan by type (enumeration or recon)
+ */
+export async function getLastScanByType(scanType: ScanType): Promise<Scan | null> {
+  const { data, error } = await supabase
+    .from("scans")
+    .select("*")
+    .eq("scan_type", scanType)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to fetch last ${scanType} scan: ${error.message}`);
+  return data;
+}
+
+/**
+ * Get recon logs by scan ID
+ */
+export async function getReconLogsByScan(scanId: string): Promise<ReconLog[]> {
+  const { data, error } = await supabase
+    .from("recon_logs")
+    .select("*")
+    .eq("scan_id", scanId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch recon logs: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Get recon findings by scan ID
+ */
+export async function getReconFindingsByScan(scanId: string): Promise<ReconFinding[]> {
+  const { data, error } = await supabase
+    .from("recon_findings")
+    .select("*")
+    .eq("scan_id", scanId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch recon findings: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Get recon results by scan ID
+ */
+export async function getReconResultsByScan(scanId: string): Promise<ReconResult[]> {
+  const { data, error } = await supabase
+    .from("recon_results")
+    .select("*")
+    .eq("scan_id", scanId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch recon results: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Complete a recon scan and save all data
+ */
+export async function completeReconScan(
+  scanId: string,
+  logs: ReconLogInsert[],
+  findings: ReconFindingInsert[],
+  results: ReconResultInsert[],
+  status: "completed" | "failed" | "cancelled" = "completed"
+): Promise<void> {
+  // Update scan status
+  await updateScan(scanId, {
+    status,
+    completed_at: new Date().toISOString(),
+  });
+
+  // Save all data in parallel
+  await Promise.all([
+    saveReconLogs(logs),
+    saveReconFindings(findings),
+    saveReconResults(results),
+  ]);
+}
+
+/**
+ * Load full recon scan data including logs, findings, and results
+ */
+export async function loadFullReconScan(scanId: string): Promise<{
+  scan: Scan;
+  logs: ReconLog[];
+  findings: ReconFinding[];
+  results: ReconResult[];
+} | null> {
+  const scan = await getScanById(scanId);
+  if (!scan) return null;
+
+  const [logs, findings, results] = await Promise.all([
+    getReconLogsByScan(scanId),
+    getReconFindingsByScan(scanId),
+    getReconResultsByScan(scanId),
+  ]);
+
+  return { scan, logs, findings, results };
+}
+
+/**
+ * Load the last recon scan with all its data
+ */
+export async function loadLastReconScan(): Promise<{
+  scan: Scan;
+  logs: ReconLog[];
+  findings: ReconFinding[];
+  results: ReconResult[];
+} | null> {
+  const lastScan = await getLastScanByType("recon");
+  if (!lastScan) return null;
+
+  return loadFullReconScan(lastScan.id);
+}
+
+/**
+ * Load the last enumeration scan with all its data
+ */
+export async function loadLastEnumerationScan(): Promise<{
+  scan: Scan;
+  vulnerabilities: Vulnerability[];
+} | null> {
+  const lastScan = await getLastScanByType("enumeration");
+  if (!lastScan) return null;
+
+  const vulnerabilities = await getVulnerabilitiesByScan(lastScan.id);
+
+  return { scan: lastScan, vulnerabilities };
 }

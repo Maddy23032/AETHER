@@ -246,9 +246,9 @@ export interface ScanResultItem {
   tool: ToolId;
   severity: Severity;
   name: string;
-  description: string;
+  description?: string;
   endpoint?: string;
-  status: 'open' | 'resolved' | 'informational';
+  status: 'open' | 'resolved' | 'informational' | 'fixed' | 'false-positive';
   raw?: string;
 }
 

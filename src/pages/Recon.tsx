@@ -39,7 +39,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { useReconScan } from "@/hooks/useReconScan";
+import { useReconScanContext } from "@/contexts/ScanContext";
 import { RECON_TOOLS } from "@/services/reconService";
 import { setApiBaseUrl, getApiBaseUrl, resetApiBaseUrl } from "@/services/api";
 import {
@@ -81,10 +81,7 @@ const SCAN_PRESETS = {
 };
 
 export default function Recon() {
-  // State
-  const [targetUrl, setTargetUrl] = useState("");
-  const [selectedTools, setSelectedTools] = useState<ToolId[]>(["httpx", "whatweb", "nmap"]);
-  const [toolOptions, setToolOptions] = useState<Partial<Record<ToolId, ToolOptions>>>({});
+  // State - local UI state only
   const [showToolConfig, setShowToolConfig] = useState(false);
   const [activeTab, setActiveTab] = useState("findings");
   const [apiUrl, setApiUrl] = useState(() => {
@@ -98,18 +95,45 @@ export default function Recon() {
 
   // Hooks
   const { toast } = useToast();
+  
+  // Use global context for scan state (persists across navigation)
   const {
     status,
+    target: contextTarget,
     logs,
     results,
     findings,
     progress,
     isApiAvailable,
+    selectedTools,
+    toolOptions,
+    savedToSupabase,
+    scanStartTime,
+    setSelectedTools,
+    setToolOptions,
     startScan,
     cancelScan,
     resetScan,
     checkApiStatus,
-  } = useReconScan();
+    loadLastScan,
+  } = useReconScanContext();
+
+  // Local target input that syncs with context
+  const [targetUrl, setTargetUrl] = useState(contextTarget || "");
+
+  // Load last scan from database on mount
+  useEffect(() => {
+    if (status === 'idle' && !logs.length && !findings.length) {
+      loadLastScan();
+    }
+  }, [loadLastScan, status, logs.length, findings.length]);
+
+  // Sync target URL from context when returning to page
+  useEffect(() => {
+    if (contextTarget && !targetUrl) {
+      setTargetUrl(contextTarget);
+    }
+  }, [contextTarget]);
 
   // Check API status on mount
   useEffect(() => {
@@ -138,22 +162,21 @@ export default function Recon() {
 
   // Handle tool toggle
   const handleToolToggle = useCallback((toolId: ToolId) => {
-    setSelectedTools((prev) =>
-      prev.includes(toolId)
-        ? prev.filter((t) => t !== toolId)
-        : [...prev, toolId]
-    );
-  }, []);
+    const newTools = selectedTools.includes(toolId)
+      ? selectedTools.filter((t) => t !== toolId)
+      : [...selectedTools, toolId];
+    setSelectedTools(newTools);
+  }, [selectedTools, setSelectedTools]);
 
   // Select all tools
   const handleSelectAll = useCallback(() => {
     setSelectedTools(RECON_TOOLS.map((t) => t.id));
-  }, []);
+  }, [setSelectedTools]);
 
   // Deselect all tools
   const handleDeselectAll = useCallback(() => {
     setSelectedTools([]);
-  }, []);
+  }, [setSelectedTools]);
 
   // Apply preset
   const applyPreset = useCallback((presetKey: keyof typeof SCAN_PRESETS) => {
@@ -162,15 +185,15 @@ export default function Recon() {
       title: "Preset Applied",
       description: `${SCAN_PRESETS[presetKey].name}: ${SCAN_PRESETS[presetKey].tools.length} tools selected`,
     });
-  }, [toast]);
+  }, [toast, setSelectedTools]);
 
   // Handle options change
   const handleOptionsChange = useCallback((toolId: ToolId, options: ToolOptions) => {
-    setToolOptions((prev) => ({
-      ...prev,
+    setToolOptions({
+      ...toolOptions,
       [toolId]: options,
-    }));
-  }, []);
+    });
+  }, [toolOptions, setToolOptions]);
 
   // Validate target URL
   const isValidTarget = useCallback((target: string): boolean => {

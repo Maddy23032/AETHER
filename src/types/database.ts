@@ -5,6 +5,9 @@
 
 export type ScanStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 export type SeverityLevel = "critical" | "high" | "medium" | "low" | "info";
+export type ScanType = "enumeration" | "recon";
+export type ReconLogType = "info" | "success" | "warning" | "error";
+export type FindingStatus = "open" | "resolved" | "informational" | "fixed" | "false-positive";
 
 export interface Database {
   public: {
@@ -14,38 +17,45 @@ export interface Database {
           id: string;
           target_url: string;
           status: ScanStatus;
+          scan_type: ScanType;
           started_at: string | null;
           completed_at: string | null;
           created_at: string;
           updated_at: string;
           config: ScanConfig;
           stats: ScanStats | null;
+          parameters: Record<string, unknown> | null;
           user_id: string | null;
         };
         Insert: {
           id?: string;
           target_url: string;
           status?: ScanStatus;
+          scan_type?: ScanType;
           started_at?: string | null;
           completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
           config?: ScanConfig;
           stats?: ScanStats | null;
+          parameters?: Record<string, unknown> | null;
           user_id?: string | null;
         };
         Update: {
           id?: string;
           target_url?: string;
           status?: ScanStatus;
+          scan_type?: ScanType;
           started_at?: string | null;
           completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
           config?: ScanConfig;
           stats?: ScanStats | null;
+          parameters?: Record<string, unknown> | null;
           user_id?: string | null;
         };
+        Relationships: [];
       };
       vulnerabilities: {
         Row: {
@@ -102,6 +112,140 @@ export interface Database {
           response_sample?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "vulnerabilities_scan_id_fkey";
+            columns: ["scan_id"];
+            referencedRelation: "scans";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      recon_logs: {
+        Row: {
+          id: string;
+          scan_id: string;
+          tool: string;
+          log_type: ReconLogType;
+          message: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          scan_id: string;
+          tool: string;
+          log_type: ReconLogType;
+          message: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          scan_id?: string;
+          tool?: string;
+          log_type?: ReconLogType;
+          message?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "recon_logs_scan_id_fkey";
+            columns: ["scan_id"];
+            referencedRelation: "scans";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      recon_findings: {
+        Row: {
+          id: string;
+          scan_id: string;
+          tool: string;
+          severity: SeverityLevel;
+          name: string;
+          description: string | null;
+          endpoint: string | null;
+          status: FindingStatus;
+          raw_data: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          scan_id: string;
+          tool: string;
+          severity: SeverityLevel;
+          name: string;
+          description?: string | null;
+          endpoint?: string | null;
+          status?: FindingStatus;
+          raw_data?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          scan_id?: string;
+          tool?: string;
+          severity?: SeverityLevel;
+          name?: string;
+          description?: string | null;
+          endpoint?: string | null;
+          status?: FindingStatus;
+          raw_data?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "recon_findings_scan_id_fkey";
+            columns: ["scan_id"];
+            referencedRelation: "scans";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      recon_results: {
+        Row: {
+          id: string;
+          scan_id: string;
+          tool: string;
+          status: "success" | "error";
+          execution_time: string | null;
+          parameters: Record<string, unknown>;
+          raw_output: string | null;
+          parsed_results: Record<string, unknown>;
+          errors: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          scan_id: string;
+          tool: string;
+          status: "success" | "error";
+          execution_time?: string | null;
+          parameters?: Record<string, unknown>;
+          raw_output?: string | null;
+          parsed_results?: Record<string, unknown>;
+          errors?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          scan_id?: string;
+          tool?: string;
+          status?: "success" | "error";
+          execution_time?: string | null;
+          parameters?: Record<string, unknown>;
+          raw_output?: string | null;
+          parsed_results?: Record<string, unknown>;
+          errors?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "recon_results_scan_id_fkey";
+            columns: ["scan_id"];
+            referencedRelation: "scans";
+            referencedColumns: ["id"];
+          }
+        ];
       };
     };
     Views: {};
@@ -109,6 +253,7 @@ export interface Database {
     Enums: {
       scan_status: ScanStatus;
       severity_level: SeverityLevel;
+      scan_type: ScanType;
     };
   };
 }
@@ -140,3 +285,11 @@ export type ScanInsert = Database["public"]["Tables"]["scans"]["Insert"];
 export type ScanUpdate = Database["public"]["Tables"]["scans"]["Update"];
 export type Vulnerability = Database["public"]["Tables"]["vulnerabilities"]["Row"];
 export type VulnerabilityInsert = Database["public"]["Tables"]["vulnerabilities"]["Insert"];
+
+// Recon types
+export type ReconLog = Database["public"]["Tables"]["recon_logs"]["Row"];
+export type ReconLogInsert = Database["public"]["Tables"]["recon_logs"]["Insert"];
+export type ReconFinding = Database["public"]["Tables"]["recon_findings"]["Row"];
+export type ReconFindingInsert = Database["public"]["Tables"]["recon_findings"]["Insert"];
+export type ReconResult = Database["public"]["Tables"]["recon_results"]["Row"];
+export type ReconResultInsert = Database["public"]["Tables"]["recon_results"]["Insert"];

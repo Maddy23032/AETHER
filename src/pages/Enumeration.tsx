@@ -34,6 +34,7 @@ import { createScan, getScan, getScanResults, cancelScan } from "@/services/scan
 import { ScanWebSocket } from "@/services/websocket";
 import { saveScan, saveVulnerabilities, updateScan } from "@/services/supabaseService";
 import { exportToJSON, exportToCSV, exportToHTML } from "@/services/exportService";
+import { useEnumerationScanContext } from "@/contexts/ScanContext";
 import type {
   ScanConfig,
   Vulnerability,
@@ -44,30 +45,58 @@ import type {
 } from "@/types/scan";
 import type { Vulnerability as DBVulnerability, VulnerabilityInsert } from "@/types/database";
 
-interface LogEntry {
-  id: number;
-  type: "info" | "ok" | "warn" | "critical";
-  message: string;
-}
-
 export default function Enumeration() {
   const queryClient = useQueryClient();
-  const [targetUrl, setTargetUrl] = useState("");
-  const [scanId, setScanId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState("");
-  const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
   const wsRef = useRef<ScanWebSocket | null>(null);
   const logIdRef = useRef(0);
 
+  // Use global context for persistent state
+  const {
+    scanId,
+    target: contextTarget,
+    status: scanStatus,
+    logs,
+    progress,
+    phase,
+    vulnerabilities,
+    savedToSupabase,
+    scanStartTime,
+    setScanId,
+    setTarget,
+    setStatus,
+    addLog,
+    setLogs,
+    setProgress,
+    setPhase,
+    addVulnerability,
+    setVulnerabilities,
+    setSavedToSupabase,
+    setScanStartTime,
+    resetScan,
+    loadLastScan,
+  } = useEnumerationScanContext();
+
+  // Local UI state
+  const [targetUrl, setTargetUrl] = useState(contextTarget || "");
   const [scanOptions, setScanOptions] = useState({
     deepCrawl: true,
     subdomainEnum: false,
     apiDiscovery: false,
   });
-  const [savedToSupabase, setSavedToSupabase] = useState(false);
-  const [scanStartTime, setScanStartTime] = useState<string | null>(null);
+
+  // Load last scan from database on mount
+  useEffect(() => {
+    if (scanStatus === 'idle' && !logs.length && !vulnerabilities.length) {
+      loadLastScan();
+    }
+  }, [loadLastScan, scanStatus, logs.length, vulnerabilities.length]);
+
+  // Sync target URL from context when returning to page
+  useEffect(() => {
+    if (contextTarget && !targetUrl) {
+      setTargetUrl(contextTarget);
+    }
+  }, [contextTarget]);
 
   // Query for scan status
   const { data: scanJob } = useQuery({
@@ -89,11 +118,13 @@ export default function Enumeration() {
     mutationFn: createScan,
     onSuccess: async (data) => {
       setScanId(data.scan_id);
+      setTarget(targetUrl);
       setLogs([]);
       setVulnerabilities([]);
       setProgress(0);
       setSavedToSupabase(false);
       setScanStartTime(new Date().toISOString());
+      logIdRef.current = 0;
       toast.success("Scan started", { description: `Scanning ${targetUrl}` });
 
       // Save scan to Supabase
@@ -102,6 +133,7 @@ export default function Enumeration() {
           id: data.scan_id,
           target_url: targetUrl.startsWith("http") ? targetUrl : `https://${targetUrl}`,
           status: "running",
+          scan_type: "enumeration",
           started_at: new Date().toISOString(),
           config: {
             deep_crawl: scanOptions.deepCrawl,
@@ -133,14 +165,7 @@ export default function Enumeration() {
       case "log": {
         const logData = message.data as WSLogData;
         logIdRef.current += 1;
-        setLogs((prev) => [
-          ...prev,
-          {
-            id: logIdRef.current,
-            type: logData.log_type,
-            message: `[${logData.log_type.toUpperCase()}] ${logData.message}`,
-          },
-        ]);
+        addLog(logIdRef.current, logData.log_type, `[${logData.log_type.toUpperCase()}] ${logData.message}`);
         break;
       }
       case "progress": {
@@ -151,7 +176,7 @@ export default function Enumeration() {
       }
       case "finding": {
         const vuln = message.data as Vulnerability;
-        setVulnerabilities((prev) => [...prev, vuln]);
+        addVulnerability(vuln);
         break;
       }
       case "status": {
@@ -169,7 +194,7 @@ export default function Enumeration() {
         break;
       }
     }
-  }, [scanId, queryClient]);
+  }, [scanId, queryClient, addLog, setProgress, setPhase, addVulnerability]);
 
   // Connect WebSocket when scan starts
   useEffect(() => {
