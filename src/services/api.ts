@@ -2,11 +2,11 @@
  * Base API configuration and utilities
  */
 
-const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const DEFAULT_API_URL = import.meta.env.VITE_API_URL_RECON || 'http://localhost:8000';
 
 // API base URLs - exported for use in other services (Enumeration/Scan pages)
-export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-export const WS_BASE_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
+export const API_BASE_URL = import.meta.env.VITE_API_URL_RECON || "http://localhost:8000";
+export const WS_BASE_URL = import.meta.env.VITE_WS_URL_RECON || "ws://localhost:8000";
 
 // Custom API URL storage
 let customApiUrl: string | null = null;
