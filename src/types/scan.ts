@@ -28,11 +28,20 @@ export interface ScanConfig {
   subdomain_enum: boolean;
   api_discovery: boolean;
   rate_limit_ms: number;
-  enable_sqli: boolean;
-  enable_xss: boolean;
-  enable_ssrf: boolean;
+  // OWASP Top 10 2021 Detection Modules
+  enable_broken_access: boolean;      // A01 - Broken Access Control
+  enable_crypto_failures: boolean;    // A02 - Cryptographic Failures
+  enable_sqli: boolean;               // A03 - Injection (SQL)
+  enable_xss: boolean;                // A03 - Injection (XSS)
+  enable_insecure_design: boolean;    // A04 - Insecure Design
+  enable_security_misconfig: boolean; // A05 - Security Misconfiguration
+  enable_vulnerable_components: boolean; // A06 - Vulnerable Components
+  enable_auth_failures: boolean;      // A07 - Authentication Failures
+  enable_data_integrity: boolean;     // A08 - Data Integrity Failures
+  enable_logging_failures: boolean;   // A09 - Logging Failures
+  enable_ssrf: boolean;               // A10 - SSRF
+  // Additional detectors
   enable_path_traversal: boolean;
-  enable_security_misconfig: boolean;
   enable_sensitive_data: boolean;
 }
 
@@ -161,10 +170,19 @@ export const DEFAULT_SCAN_CONFIG: ScanConfig = {
   subdomain_enum: false,
   api_discovery: false,
   rate_limit_ms: 500,
+  // OWASP Top 10 2021
+  enable_broken_access: true,
+  enable_crypto_failures: true,
   enable_sqli: true,
   enable_xss: true,
-  enable_ssrf: true,
-  enable_path_traversal: true,
+  enable_insecure_design: true,
   enable_security_misconfig: true,
+  enable_vulnerable_components: true,
+  enable_auth_failures: true,
+  enable_data_integrity: true,
+  enable_logging_failures: true,
+  enable_ssrf: true,
+  // Additional
+  enable_path_traversal: true,
   enable_sensitive_data: true,
 };

@@ -67,12 +67,30 @@ class ScanConfig(BaseModel):
         description="Delay between requests in milliseconds",
     )
     
-    # Detection modules to enable
+    # Detection modules to enable - OWASP Top 10 2021
+    # A01 - Broken Access Control
+    enable_broken_access: bool = Field(default=True, description="Broken Access Control detection (IDOR, privilege escalation)")
+    # A02 - Cryptographic Failures
+    enable_crypto_failures: bool = Field(default=True, description="Cryptographic Failures detection (weak crypto, missing HTTPS)")
+    # A03 - Injection
     enable_sqli: bool = Field(default=True, description="SQL Injection detection")
     enable_xss: bool = Field(default=True, description="Cross-Site Scripting detection")
-    enable_ssrf: bool = Field(default=True, description="Server-Side Request Forgery detection")
-    enable_path_traversal: bool = Field(default=True, description="Path Traversal detection")
+    # A04 - Insecure Design
+    enable_insecure_design: bool = Field(default=True, description="Insecure Design detection (business logic flaws)")
+    # A05 - Security Misconfiguration
     enable_security_misconfig: bool = Field(default=True, description="Security Misconfiguration detection")
+    # A06 - Vulnerable Components
+    enable_vulnerable_components: bool = Field(default=True, description="Vulnerable and Outdated Components detection")
+    # A07 - Authentication Failures
+    enable_auth_failures: bool = Field(default=True, description="Authentication Failures detection")
+    # A08 - Data Integrity Failures
+    enable_data_integrity: bool = Field(default=True, description="Software and Data Integrity Failures detection")
+    # A09 - Logging Failures
+    enable_logging_failures: bool = Field(default=True, description="Security Logging and Monitoring Failures detection")
+    # A10 - SSRF
+    enable_ssrf: bool = Field(default=True, description="Server-Side Request Forgery detection")
+    # Additional detectors
+    enable_path_traversal: bool = Field(default=True, description="Path Traversal detection")
     enable_sensitive_data: bool = Field(default=True, description="Sensitive Data Exposure detection")
     
     # Authentication (Phase 2 feature)

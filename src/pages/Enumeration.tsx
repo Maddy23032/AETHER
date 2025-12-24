@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Globe, Play, Settings2, Terminal, ExternalLink, StopCircle, FileJson, FileText, FileCode, Download, Save, Search } from "lucide-react";
+import { Globe, Play, Settings2, Terminal, ExternalLink, StopCircle, FileJson, FileText, FileCode, Download, Save, Search, Shield, ChevronDown, ChevronUp } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,12 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +40,7 @@ import { createScan, getScan, getScanResults, cancelScan } from "@/services/scan
 import { ScanWebSocket } from "@/services/websocket";
 import { saveScan, saveVulnerabilities, updateScan } from "@/services/supabaseService";
 import { exportToJSON, exportToCSV, exportToHTML } from "@/services/exportService";
+import { ingestScanResults } from "@/services/intelligenceService";
 import { useEnumerationScanContext } from "@/contexts/ScanContext";
 import type {
   ScanConfig,
@@ -83,6 +90,24 @@ export default function Enumeration() {
     subdomainEnum: false,
     apiDiscovery: false,
   });
+  const [vulnOptions, setVulnOptions] = useState({
+    // OWASP Top 10 2021
+    enable_broken_access: true,      // A01
+    enable_crypto_failures: true,    // A02
+    enable_sqli: true,               // A03
+    enable_xss: true,                // A03
+    enable_insecure_design: true,    // A04
+    enable_security_misconfig: true, // A05
+    enable_vulnerable_components: true, // A06
+    enable_auth_failures: true,      // A07
+    enable_data_integrity: true,     // A08
+    enable_logging_failures: true,   // A09
+    enable_ssrf: true,               // A10
+    // Additional
+    enable_path_traversal: true,
+    enable_sensitive_data: true,
+  });
+  const [showVulnOptions, setShowVulnOptions] = useState(false);
 
   // Load last scan from database on mount
   useEffect(() => {
@@ -255,6 +280,42 @@ export default function Enumeration() {
 
           setSavedToSupabase(true);
           toast.success("Results saved to database");
+
+          // Ingest scan results into Intelligence RAG for AI analysis
+          try {
+            await ingestScanResults({
+              scan_id: scanId,
+              scan_type: "enumeration",
+              target: targetUrl.startsWith("http") ? targetUrl : `https://${targetUrl}`,
+              results: {
+                vulnerabilities: results.vulnerabilities.map(v => ({
+                  name: v.name,
+                  severity: v.severity,
+                  confidence: v.confidence,
+                  owasp_category: v.owasp_category,
+                  cwe_id: v.cwe_id,
+                  endpoint: v.endpoint,
+                  method: v.method,
+                  description: v.description,
+                  remediation: v.remediation,
+                })),
+                stats: {
+                  urls_scanned: results.urls_scanned || 0,
+                  requests_made: results.requests_made || 0,
+                  vulnerabilities_found: results.vulnerabilities.length,
+                  duration_seconds: results.duration_seconds || 0,
+                },
+              },
+              metadata: {
+                scan_options: scanOptions,
+                completed_at: new Date().toISOString(),
+              },
+            });
+            console.log("[Enumeration] Scan results ingested into Intelligence RAG");
+          } catch (ragErr) {
+            // Don't fail the whole save if RAG ingestion fails
+            console.warn("[Enumeration] Failed to ingest into Intelligence RAG:", ragErr);
+          }
         } catch (err) {
           console.warn("Failed to save results to Supabase:", err);
         }
@@ -269,12 +330,7 @@ export default function Enumeration() {
       deep_crawl: scanOptions.deepCrawl,
       subdomain_enum: scanOptions.subdomainEnum,
       api_discovery: scanOptions.apiDiscovery,
-      enable_sqli: true,
-      enable_xss: true,
-      enable_ssrf: true,
-      enable_path_traversal: true,
-      enable_security_misconfig: true,
-      enable_sensitive_data: true,
+      ...vulnOptions,
     };
 
     // Ensure URL has protocol
@@ -421,6 +477,177 @@ export default function Enumeration() {
                 />
               </div>
             </div>
+
+            {/* Vulnerability Detection Options */}
+            <Collapsible open={showVulnOptions} onOpenChange={setShowVulnOptions}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between px-0 hover:bg-transparent" disabled={isScanning}>
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium">Vulnerability Types</span>
+                  </div>
+                  {showVulnOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-2">
+                {/* Quick Actions */}
+                <div className="flex gap-2 pb-2 border-b border-border">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setVulnOptions(prev => Object.fromEntries(Object.keys(prev).map(k => [k, true])) as typeof prev)}
+                    disabled={isScanning}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setVulnOptions(prev => Object.fromEntries(Object.keys(prev).map(k => [k, false])) as typeof prev)}
+                    disabled={isScanning}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+                
+                {/* OWASP Top 10 Checkboxes */}
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">OWASP Top 10 2021</div>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_broken_access}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_broken_access: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A01</span>
+                    <span>Broken Access Control</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_crypto_failures}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_crypto_failures: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A02</span>
+                    <span>Cryptographic Failures</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_sqli}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_sqli: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A03</span>
+                    <span>SQL Injection</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_xss}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_xss: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A03</span>
+                    <span>Cross-Site Scripting (XSS)</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_insecure_design}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_insecure_design: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A04</span>
+                    <span>Insecure Design</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_security_misconfig}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_security_misconfig: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A05</span>
+                    <span>Security Misconfiguration</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_vulnerable_components}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_vulnerable_components: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A06</span>
+                    <span>Vulnerable Components</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_auth_failures}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_auth_failures: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A07</span>
+                    <span>Authentication Failures</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_data_integrity}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_data_integrity: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A08</span>
+                    <span>Data Integrity Failures</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_logging_failures}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_logging_failures: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A09</span>
+                    <span>Logging Failures</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_ssrf}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_ssrf: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span className="text-primary font-medium">A10</span>
+                    <span>SSRF</span>
+                  </label>
+                  
+                  <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mt-2 mb-1">Additional Checks</div>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_path_traversal}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_path_traversal: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span>Path Traversal</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={vulnOptions.enable_sensitive_data}
+                      onCheckedChange={(checked) => setVulnOptions(prev => ({ ...prev, enable_sensitive_data: !!checked }))}
+                      disabled={isScanning}
+                    />
+                    <span>Sensitive Data Exposure</span>
+                  </label>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {isScanning ? (
               <Button
