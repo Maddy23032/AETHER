@@ -16,6 +16,8 @@ import type {
   ReconResult,
   ReconResultInsert,
   ScanType,
+  MobileScan,
+  MobileScanInsert,
 } from "@/types/database";
 
 /**
@@ -423,4 +425,140 @@ export async function loadLastEnumerationScan(): Promise<{
   const vulnerabilities = await getVulnerabilitiesByScan(lastScan.id);
 
   return { scan: lastScan, vulnerabilities };
+}
+
+// ============================================================================
+// MOBILE SCAN FUNCTIONS
+// ============================================================================
+
+/**
+ * Save a mobile scan to Supabase
+ */
+export async function saveMobileScan(scan: MobileScanInsert): Promise<MobileScan> {
+  const { data, error } = await supabase
+    .from("mobile_scans")
+    .insert(scan)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to save mobile scan: ${error.message}`);
+  return data;
+}
+
+/**
+ * Get all mobile scans with pagination
+ */
+export async function getAllMobileScans(
+  page: number = 1,
+  limit: number = 20
+): Promise<{ scans: MobileScan[]; total: number }> {
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, error, count } = await supabase
+    .from("mobile_scans")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (error) throw new Error(`Failed to fetch mobile scans: ${error.message}`);
+  return { scans: data || [], total: count || 0 };
+}
+
+/**
+ * Get a mobile scan by ID
+ */
+export async function getMobileScanById(scanId: string): Promise<MobileScan | null> {
+  const { data, error } = await supabase
+    .from("mobile_scans")
+    .select("*")
+    .eq("id", scanId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw new Error(`Failed to fetch mobile scan: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * Get a mobile scan by file hash
+ */
+export async function getMobileScanByHash(fileHash: string): Promise<MobileScan | null> {
+  const { data, error } = await supabase
+    .from("mobile_scans")
+    .select("*")
+    .eq("file_hash", fileHash)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to fetch mobile scan by hash: ${error.message}`);
+  return data;
+}
+
+/**
+ * Get the last mobile scan
+ */
+export async function getLastMobileScan(): Promise<MobileScan | null> {
+  const { data, error } = await supabase
+    .from("mobile_scans")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to fetch last mobile scan: ${error.message}`);
+  return data;
+}
+
+/**
+ * Delete a mobile scan
+ */
+export async function deleteMobileScan(scanId: string): Promise<void> {
+  const { error } = await supabase
+    .from("mobile_scans")
+    .delete()
+    .eq("id", scanId);
+
+  if (error) throw new Error(`Failed to delete mobile scan: ${error.message}`);
+}
+
+/**
+ * Get mobile scan count
+ */
+export async function getMobileScanCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from("mobile_scans")
+    .select("*", { count: "exact", head: true });
+
+  if (error) throw new Error(`Failed to fetch mobile scan count: ${error.message}`);
+  return count || 0;
+}
+
+/**
+ * Get recon scan count
+ */
+export async function getReconScanCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from("scans")
+    .select("*", { count: "exact", head: true })
+    .eq("scan_type", "recon");
+
+  if (error) throw new Error(`Failed to fetch recon scan count: ${error.message}`);
+  return count || 0;
+}
+
+/**
+ * Get enumeration scan count
+ */
+export async function getEnumerationScanCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from("scans")
+    .select("*", { count: "exact", head: true })
+    .eq("scan_type", "enumeration");
+
+  if (error) throw new Error(`Failed to fetch enumeration scan count: ${error.message}`);
+  return count || 0;
 }

@@ -45,6 +45,7 @@ async def ingest_scan(request: IngestScanRequest):
     Ingest scan results into the vector store for RAG retrieval.
     This allows the AI to reference scan data when answering questions.
     """
+    print(f"[Ingest] Received {request.scan_type} scan ingestion request for target: {request.target}")
     try:
         doc_id, chunks_created = await rag_service.ingest_scan_results(
             scan_id=request.scan_id,
@@ -54,6 +55,7 @@ async def ingest_scan(request: IngestScanRequest):
             metadata=request.metadata
         )
         
+        print(f"[Ingest] Successfully ingested scan: doc_id={doc_id}, chunks={chunks_created}")
         return IngestResponse(
             success=True,
             document_id=doc_id,
@@ -62,6 +64,7 @@ async def ingest_scan(request: IngestScanRequest):
         )
     
     except Exception as e:
+        print(f"[Ingest] Error ingesting scan: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Scan ingestion error: {str(e)}")
 
 

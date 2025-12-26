@@ -64,6 +64,8 @@ async def get_references(
                 summary = f"Reconnaissance scan targeting {metadata.get('target', 'unknown target')}"
             elif source_type == SourceType.ENUM_SCAN:
                 summary = f"Enumeration scan with vulnerability assessment for {metadata.get('target', 'unknown target')}"
+            elif source_type == SourceType.MOBILE_SCAN:
+                summary = f"Mobile security analysis for {metadata.get('target', metadata.get('filename', 'unknown app'))}"
             else:
                 summary = f"Document with {doc_meta.get('chunks', 0)} chunks"
             

@@ -1,6 +1,6 @@
 /**
  * Global Scan Context
- * Persists scan state across page navigation for both Recon and Enumeration scans
+ * Persists scan state across page navigation for Recon, Enumeration, and Mobile scans
  */
 
 import React, { createContext, useContext, useReducer, useCallback, useRef, useEffect } from 'react';
@@ -23,6 +23,7 @@ import type {
   Severity,
 } from '@/services/types/recon.types';
 import type { Vulnerability } from '@/types/scan';
+import type { FullAnalysisResponse, ScanHistoryItem } from '@/services/mobileService';
 
 // ============================================================================
 // Types
@@ -55,9 +56,21 @@ interface EnumerationScanState {
   scanStartTime: string | null;
 }
 
+interface MobileScanState {
+  isAnalyzing: boolean;
+  analysisProgress: number;
+  progressMessage: string;
+  report: FullAnalysisResponse | null;
+  scanHistory: ScanHistoryItem[];
+  selectedTab: string;
+  error: string | null;
+  filename: string | null;
+}
+
 interface ScanContextState {
   recon: ReconScanState;
   enumeration: EnumerationScanState;
+  mobile: MobileScanState;
 }
 
 type ReconAction =
@@ -91,7 +104,18 @@ type EnumerationAction =
   | { type: 'ENUM_SET_SCAN_START_TIME'; payload: string | null }
   | { type: 'ENUM_RESET' };
 
-type ScanAction = ReconAction | EnumerationAction;
+type MobileAction =
+  | { type: 'MOBILE_SET_IS_ANALYZING'; payload: boolean }
+  | { type: 'MOBILE_SET_PROGRESS'; payload: number }
+  | { type: 'MOBILE_SET_PROGRESS_MESSAGE'; payload: string }
+  | { type: 'MOBILE_SET_REPORT'; payload: FullAnalysisResponse | null }
+  | { type: 'MOBILE_SET_SCAN_HISTORY'; payload: ScanHistoryItem[] }
+  | { type: 'MOBILE_SET_SELECTED_TAB'; payload: string }
+  | { type: 'MOBILE_SET_ERROR'; payload: string | null }
+  | { type: 'MOBILE_SET_FILENAME'; payload: string | null }
+  | { type: 'MOBILE_RESET' };
+
+type ScanAction = ReconAction | EnumerationAction | MobileAction;
 
 // ============================================================================
 // Initial State
@@ -124,9 +148,21 @@ const initialEnumerationState: EnumerationScanState = {
   scanStartTime: null,
 };
 
+const initialMobileState: MobileScanState = {
+  isAnalyzing: false,
+  analysisProgress: 0,
+  progressMessage: '',
+  report: null,
+  scanHistory: [],
+  selectedTab: 'upload',
+  error: null,
+  filename: null,
+};
+
 const initialState: ScanContextState = {
   recon: initialReconState,
   enumeration: initialEnumerationState,
+  mobile: initialMobileState,
 };
 
 // ============================================================================
@@ -192,6 +228,26 @@ function scanReducer(state: ScanContextState, action: ScanAction): ScanContextSt
       return { ...state, enumeration: { ...state.enumeration, scanStartTime: action.payload } };
     case 'ENUM_RESET':
       return { ...state, enumeration: initialEnumerationState };
+
+    // Mobile actions
+    case 'MOBILE_SET_IS_ANALYZING':
+      return { ...state, mobile: { ...state.mobile, isAnalyzing: action.payload } };
+    case 'MOBILE_SET_PROGRESS':
+      return { ...state, mobile: { ...state.mobile, analysisProgress: action.payload } };
+    case 'MOBILE_SET_PROGRESS_MESSAGE':
+      return { ...state, mobile: { ...state.mobile, progressMessage: action.payload } };
+    case 'MOBILE_SET_REPORT':
+      return { ...state, mobile: { ...state.mobile, report: action.payload } };
+    case 'MOBILE_SET_SCAN_HISTORY':
+      return { ...state, mobile: { ...state.mobile, scanHistory: action.payload } };
+    case 'MOBILE_SET_SELECTED_TAB':
+      return { ...state, mobile: { ...state.mobile, selectedTab: action.payload } };
+    case 'MOBILE_SET_ERROR':
+      return { ...state, mobile: { ...state.mobile, error: action.payload } };
+    case 'MOBILE_SET_FILENAME':
+      return { ...state, mobile: { ...state.mobile, filename: action.payload } };
+    case 'MOBILE_RESET':
+      return { ...state, mobile: initialMobileState };
 
     default:
       return state;
@@ -696,10 +752,30 @@ export function ScanProvider({ children }: { children: React.ReactNode }) {
   }, [reconAddLog, reconCheckApiStatus]);
 
   // Recon: Cancel scan
-  const reconCancelScan = useCallback(() => {
+  const reconCancelScan = useCallback(async () => {
+    if (abortRef.current) {
+      // Already cancelling, ignore repeated clicks
+      return;
+    }
     abortRef.current = true;
     reconAddLog('system', 'warning', '[CANCEL] Cancellation requested...');
-  }, [reconAddLog]);
+    // Immediately update status to reflect cancellation
+    dispatch({ type: 'RECON_SET_STATUS', payload: 'idle' });
+    
+    // Also notify the backend to cancel any running scans
+    const target = state.recon.target;
+    if (target) {
+      try {
+        const result = await reconService.cancelScan(target);
+        if (result.cancelled_count > 0) {
+          reconAddLog('system', 'info', `[CANCEL] Backend cancelled ${result.cancelled_count} running scan(s)`);
+        }
+      } catch (error) {
+        console.warn('Failed to cancel backend scans:', error);
+        // Don't show error to user - frontend cancellation still works
+      }
+    }
+  }, [reconAddLog, state.recon.target]);
 
   // Recon: Reset scan
   const reconResetScan = useCallback(() => {
@@ -920,6 +996,30 @@ export function useEnumerationScanContext() {
     setScanStartTime: (time: string | null) => dispatch({ type: 'ENUM_SET_SCAN_START_TIME', payload: time }),
     resetScan: () => dispatch({ type: 'ENUM_RESET' }),
     loadLastScan: loadLastEnumeration,
+  };
+}
+
+export function useMobileScanContext() {
+  const { state, dispatch } = useScanContext();
+  
+  return {
+    isAnalyzing: state.mobile.isAnalyzing,
+    analysisProgress: state.mobile.analysisProgress,
+    progressMessage: state.mobile.progressMessage,
+    report: state.mobile.report,
+    scanHistory: state.mobile.scanHistory,
+    selectedTab: state.mobile.selectedTab,
+    error: state.mobile.error,
+    filename: state.mobile.filename,
+    setIsAnalyzing: (isAnalyzing: boolean) => dispatch({ type: 'MOBILE_SET_IS_ANALYZING', payload: isAnalyzing }),
+    setAnalysisProgress: (progress: number) => dispatch({ type: 'MOBILE_SET_PROGRESS', payload: progress }),
+    setProgressMessage: (message: string) => dispatch({ type: 'MOBILE_SET_PROGRESS_MESSAGE', payload: message }),
+    setReport: (report: FullAnalysisResponse | null) => dispatch({ type: 'MOBILE_SET_REPORT', payload: report }),
+    setScanHistory: (history: ScanHistoryItem[]) => dispatch({ type: 'MOBILE_SET_SCAN_HISTORY', payload: history }),
+    setSelectedTab: (tab: string) => dispatch({ type: 'MOBILE_SET_SELECTED_TAB', payload: tab }),
+    setError: (error: string | null) => dispatch({ type: 'MOBILE_SET_ERROR', payload: error }),
+    setFilename: (filename: string | null) => dispatch({ type: 'MOBILE_SET_FILENAME', payload: filename }),
+    resetScan: () => dispatch({ type: 'MOBILE_RESET' }),
   };
 }
 
