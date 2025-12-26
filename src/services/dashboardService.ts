@@ -90,15 +90,22 @@ export interface MobileAppSummary {
 export async function getDashboardStats(): Promise<DashboardStats> {
   try {
     // Fetch all data in parallel
-    const [scansResult, vulnsResult, mobileResult] = await Promise.all([
+    const [scansResult, vulnsResult] = await Promise.all([
       supabase.from("scans").select("id, status, scan_type, created_at"),
       supabase.from("vulnerabilities").select("severity"),
-      supabase.from("mobile_scans").select("id, security_score"),
     ]);
+
+    // Mobile scans might not exist, so handle separately
+    let mobileScans: { id: string; security_score: number | null }[] = [];
+    try {
+      const mobileResult = await supabase.from("mobile_scans").select("id, security_score");
+      mobileScans = mobileResult.data || [];
+    } catch {
+      mobileScans = [];
+    }
 
     const scans = scansResult.data || [];
     const vulns = vulnsResult.data || [];
-    const mobileScans = mobileResult.data || [];
 
     // Calculate vulnerability counts by severity
     const vulnBySeverity = vulns.reduce((acc, v) => {
@@ -245,13 +252,18 @@ export async function getSeverityDistribution(): Promise<SeverityDistribution[]>
  */
 export async function getScanTypeDistribution(): Promise<ScanTypeDistribution[]> {
   try {
-    const [scansResult, mobileResult] = await Promise.all([
-      supabase.from("scans").select("scan_type"),
-      supabase.from("mobile_scans").select("id"),
-    ]);
+    const scansResult = await supabase.from("scans").select("scan_type");
+    
+    // Mobile scans might not exist, so handle separately
+    let mobileCount = 0;
+    try {
+      const mobileResult = await supabase.from("mobile_scans").select("id");
+      mobileCount = (mobileResult.data || []).length;
+    } catch {
+      mobileCount = 0;
+    }
 
     const scans = scansResult.data || [];
-    const mobileCount = (mobileResult.data || []).length;
 
     const counts = scans.reduce((acc, s) => {
       acc[s.scan_type] = (acc[s.scan_type] || 0) + 1;
@@ -282,7 +294,7 @@ export async function getScanTypeDistribution(): Promise<ScanTypeDistribution[]>
  */
 export async function getRecentActivity(limit: number = 10): Promise<RecentActivity[]> {
   try {
-    const [scansResult, vulnsResult, findingsResult, mobileResult] = await Promise.all([
+    const [scansResult, vulnsResult, findingsResult] = await Promise.all([
       supabase
         .from("scans")
         .select("id, target_url, status, scan_type, created_at, completed_at")
@@ -298,12 +310,20 @@ export async function getRecentActivity(limit: number = 10): Promise<RecentActiv
         .select("id, name, severity, tool, created_at")
         .order("created_at", { ascending: false })
         .limit(limit),
-      supabase
+    ]);
+    
+    // Mobile scans might not exist, so handle separately
+    let mobileData: MobileScan[] = [];
+    try {
+      const mobileResult = await supabase
         .from("mobile_scans")
         .select("id, filename, grade, security_score, created_at")
         .order("created_at", { ascending: false })
-        .limit(limit),
-    ]);
+        .limit(limit);
+      mobileData = (mobileResult.data || []) as MobileScan[];
+    } catch {
+      mobileData = [];
+    }
 
     const activities: RecentActivity[] = [];
 
@@ -343,7 +363,7 @@ export async function getRecentActivity(limit: number = 10): Promise<RecentActiv
     });
 
     // Add mobile scan events
-    ((mobileResult as { data: MobileScan[] }).data || []).forEach(mobile => {
+    mobileData.forEach(mobile => {
       const type = mobile.grade === "F" || mobile.grade === "D" ? "warning" : "success";
       activities.push({
         id: `mobile-${mobile.id}`,
