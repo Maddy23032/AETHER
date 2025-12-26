@@ -1,0 +1,79 @@
+# AETHER Mobile Security Stack
+# Docker Compose configuration for full stack deployment
+
+version: '3.8'
+
+services:
+  # ===========================================
+  # AETHER Mobile Security API
+  # ===========================================
+  mobile-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aether-mobile-api
+    ports:
+      - "8001:8001"
+    environment:
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8001
+      - MOBSF_URL=http://mobsf:8000
+      - MOBSF_USERNAME=mobsf
+      - MOBSF_PASSWORD=mobsf
+      - MOBSF_AUTO_START=false  # MobSF managed by compose
+      - MAX_UPLOAD_SIZE_MB=100
+      - MAX_CONCURRENT_SCANS=3
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:5173","http://localhost:8080"]
+    volumes:
+      - ./uploads:/app/uploads
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+    depends_on:
+      mobsf:
+        condition: service_healthy
+    networks:
+      - aether-mobile-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ===========================================
+  # MobSF - Mobile Security Framework
+  # ===========================================
+  mobsf:
+    image: opensecurity/mobile-security-framework-mobsf:latest
+    container_name: aether-mobsf
+    ports:
+      - "8000:8000"
+    environment:
+      - MOBSF_API_ONLY=0  # Full UI + API
+    volumes:
+      - mobsf-data:/home/mobsf/.MobSF
+    networks:
+      - aether-mobile-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/scans"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # MobSF takes time to start
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  mobsf-data:
+    driver: local
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  aether-mobile-network:
+    driver: bridge

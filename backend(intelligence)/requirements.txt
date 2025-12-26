@@ -1,0 +1,31 @@
+# AETHER Intelligence Backend - RAG API
+# Python 3.10+ required
+
+# FastAPI
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+python-dotenv>=1.0.0
+
+# LangChain RAG Stack
+langchain>=0.3.0
+langchain-groq>=0.2.0
+langchain-text-splitters>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-huggingface>=0.1.0
+
+# Embeddings & Vector Store
+sentence-transformers>=2.2.0
+torch>=2.0.0
+faiss-cpu>=1.7.0
+
+# Document Processing
+pypdf>=4.0.0
+docx2txt>=0.8
+
+# Supabase Client (for fetching scan data)
+supabase>=2.0.0
+
+# CORS
+python-multipart>=0.0.6

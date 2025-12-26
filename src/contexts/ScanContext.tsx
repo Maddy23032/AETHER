@@ -11,6 +11,7 @@ import {
   loadLastReconScan,
   loadLastEnumerationScan,
 } from '@/services/supabaseService';
+import { ingestScanResults } from '@/services/intelligenceService';
 import type { ReconLogInsert, ReconFindingInsert, ReconResultInsert } from '@/types/database';
 import type {
   ScanStatus,
@@ -652,6 +653,40 @@ export function ScanProvider({ children }: { children: React.ReactNode }) {
           abortRef.current ? 'cancelled' : 'completed'
         );
         dispatch({ type: 'RECON_SET_SAVED_TO_SUPABASE', payload: true });
+
+        // Ingest scan results into Intelligence RAG for AI analysis
+        try {
+          await ingestScanResults({
+            scan_id: scanId,
+            scan_type: "recon",
+            target,
+            results: {
+              findings: extractedFindings.map(f => ({
+                tool: f.tool,
+                severity: f.severity,
+                name: f.name,
+                description: f.description,
+                endpoint: f.endpoint,
+              })),
+              tools_executed: selectedTools,
+              tool_results: scanResults.map(r => ({
+                tool: r.tool,
+                status: r.status,
+                execution_time: r.execution_time,
+                parsed_results: r.results?.parsed,
+              })),
+            },
+            metadata: {
+              tools_selected: selectedTools,
+              completed_at: new Date().toISOString(),
+              aborted: abortRef.current,
+            },
+          });
+          console.log("[ScanContext] Recon results ingested into Intelligence RAG");
+        } catch (ragErr) {
+          // Don't fail the whole save if RAG ingestion fails
+          console.warn("[ScanContext] Failed to ingest into Intelligence RAG:", ragErr);
+        }
       } catch (error) {
         console.error('Failed to save recon results to database:', error);
       }
