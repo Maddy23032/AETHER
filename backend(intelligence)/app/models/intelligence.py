@@ -17,6 +17,7 @@ class MessageRole(str, Enum):
 class SourceType(str, Enum):
     RECON_SCAN = "recon_scan"
     ENUM_SCAN = "enum_scan"
+    MOBILE_SCAN = "mobile_scan"
     DOCUMENT = "document"
     KNOWLEDGE_BASE = "knowledge_base"
 
@@ -132,6 +133,7 @@ class AnalysisContextStats(BaseModel):
     total_documents: int
     recon_scans_count: int
     enum_scans_count: int
+    mobile_scans_count: int
     total_chunks: int
     last_updated: Optional[datetime] = None
     vector_store_status: str = "active"

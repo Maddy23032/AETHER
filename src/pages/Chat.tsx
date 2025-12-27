@@ -21,6 +21,7 @@ import {
   getContextStats,
   getReferences,
   checkHealth,
+  refreshScansFromDatabase,
   type ChatMessage as APIChatMessage,
   type SourceReference,
   type SuggestedPrompt,
@@ -86,6 +87,7 @@ export default function Chat() {
   const [suggestedPrompts, setSuggestedPrompts] = useState<SuggestedPrompt[]>([]);
   const [contextStats, setContextStats] = useState<AnalysisContextStats | null>(null);
   const [references, setReferences] = useState<Reference[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -210,6 +212,24 @@ export default function Chat() {
       setReferences(response.references);
     } catch (err) {
       console.error("Failed to load references:", err);
+    }
+  };
+
+  const handleRefreshScans = async () => {
+    if (isRefreshing) return;
+    
+    setIsRefreshing(true);
+    try {
+      const result = await refreshScansFromDatabase();
+      toast.success(`Loaded ${result.scans_loaded} scans into AI context`);
+      
+      // Reload stats and references
+      await Promise.all([loadContextStats(), loadReferences()]);
+    } catch (err) {
+      console.error("Failed to refresh scans:", err);
+      toast.error("Failed to refresh scans from database");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -849,9 +869,29 @@ export default function Chat() {
           )}
 
           <div className="mt-6 pt-4 border-t border-border">
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Analysis Context
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Analysis Context
+              </h4>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={handleRefreshScans}
+                      disabled={isRefreshing}
+                    >
+                      <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Refresh scans from database</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             {contextStats ? (
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -865,6 +905,10 @@ export default function Chat() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Enum Scans</span>
                   <span>{contextStats.enum_scans_count}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Mobile Scans</span>
+                  <span>{contextStats.mobile_scans_count}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Knowledge Chunks</span>

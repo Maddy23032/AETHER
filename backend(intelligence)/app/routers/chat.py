@@ -100,6 +100,62 @@ async def get_context_stats():
         total_documents=stats["total_documents"],
         recon_scans_count=stats["recon_scans_count"],
         enum_scans_count=stats["enum_scans_count"],
+        mobile_scans_count=stats["mobile_scans_count"],
         total_chunks=stats["total_chunks"],
         vector_store_status=stats["vector_store_status"]
     )
+
+
+@router.get("/debug/documents")
+async def debug_documents():
+    """
+    Debug endpoint to see all documents in the metadata store.
+    """
+    docs = []
+    for doc_id, meta in rag_service._document_metadata.items():
+        source_type = meta.get("source_type")
+        if hasattr(source_type, 'value'):
+            source_type = source_type.value
+        
+        created_at = meta.get("created_at")
+        if hasattr(created_at, 'isoformat'):
+            created_at = created_at.isoformat()
+        
+        docs.append({
+            "id": doc_id,
+            "title": meta.get("title"),
+            "source_type": source_type,
+            "chunks": meta.get("chunks"),
+            "created_at": created_at,
+            "metadata": meta.get("metadata")
+        })
+    
+    # Sort by created_at (newest first)
+    docs.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    
+    return {
+        "total": len(docs),
+        "documents": docs
+    }
+
+
+@router.post("/refresh-scans")
+async def refresh_scans():
+    """
+    Manually reload all scans from Supabase into the RAG vector store.
+    Use this when you want to ensure all scans are available for analysis.
+    """
+    try:
+        scans_loaded = await rag_service.load_scans_from_supabase()
+        stats = rag_service.get_stats()
+        
+        return {
+            "success": True,
+            "scans_loaded": scans_loaded,
+            "total_documents": stats["total_documents"],
+            "recon_scans": stats["recon_scans_count"],
+            "enum_scans": stats["enum_scans_count"],
+            "mobile_scans": stats["mobile_scans_count"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to refresh scans: {str(e)}")

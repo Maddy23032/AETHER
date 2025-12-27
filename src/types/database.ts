@@ -5,7 +5,7 @@
 
 export type ScanStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 export type SeverityLevel = "critical" | "high" | "medium" | "low" | "info";
-export type ScanType = "enumeration" | "recon";
+export type ScanType = "enumeration" | "recon" | "mobile";
 export type ReconLogType = "info" | "success" | "warning" | "error";
 export type FindingStatus = "open" | "resolved" | "informational" | "fixed" | "false-positive";
 
@@ -247,6 +247,63 @@ export interface Database {
           }
         ];
       };
+      mobile_scans: {
+        Row: {
+          id: string;
+          file_hash: string;
+          filename: string;
+          package_name: string | null;
+          app_name: string | null;
+          version: string | null;
+          platform: "android" | "ios";
+          security_score: number | null;
+          grade: string | null;
+          scan_type: string;
+          json_report: Record<string, unknown> | null;
+          scorecard: Record<string, unknown> | null;
+          permissions: Record<string, unknown> | null;
+          security_issues: Record<string, unknown>[] | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          file_hash: string;
+          filename: string;
+          package_name?: string | null;
+          app_name?: string | null;
+          version?: string | null;
+          platform?: "android" | "ios";
+          security_score?: number | null;
+          grade?: string | null;
+          scan_type?: string;
+          json_report?: Record<string, unknown> | null;
+          scorecard?: Record<string, unknown> | null;
+          permissions?: Record<string, unknown> | null;
+          security_issues?: Record<string, unknown>[] | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          file_hash?: string;
+          filename?: string;
+          package_name?: string | null;
+          app_name?: string | null;
+          version?: string | null;
+          platform?: "android" | "ios";
+          security_score?: number | null;
+          grade?: string | null;
+          scan_type?: string;
+          json_report?: Record<string, unknown> | null;
+          scorecard?: Record<string, unknown> | null;
+          permissions?: Record<string, unknown> | null;
+          security_issues?: Record<string, unknown>[] | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {};
     Functions: {};
@@ -293,3 +350,8 @@ export type ReconFinding = Database["public"]["Tables"]["recon_findings"]["Row"]
 export type ReconFindingInsert = Database["public"]["Tables"]["recon_findings"]["Insert"];
 export type ReconResult = Database["public"]["Tables"]["recon_results"]["Row"];
 export type ReconResultInsert = Database["public"]["Tables"]["recon_results"]["Insert"];
+
+// Mobile scan types
+export type MobileScan = Database["public"]["Tables"]["mobile_scans"]["Row"];
+export type MobileScanInsert = Database["public"]["Tables"]["mobile_scans"]["Insert"];
+export type MobileScanUpdate = Database["public"]["Tables"]["mobile_scans"]["Update"];

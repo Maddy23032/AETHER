@@ -3,13 +3,19 @@
  * Client for the RAG-powered security analysis assistant backend
  */
 
+import { 
+  getMobileScanCount, 
+  getReconScanCount, 
+  getEnumerationScanCount 
+} from './supabaseService';
+
 const INTELLIGENCE_API_URL = import.meta.env.VITE_INTELLIGENCE_API_URL || 'http://localhost:8002';
 
 // ===== Types =====
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
-export type SourceType = 'recon_scan' | 'enum_scan' | 'document' | 'knowledge_base';
+export type SourceType = 'recon_scan' | 'enum_scan' | 'mobile_scan' | 'document' | 'knowledge_base';
 
 export interface ChatMessage {
   role: MessageRole;
@@ -49,6 +55,7 @@ export interface AnalysisContextStats {
   total_documents: number;
   recon_scans_count: number;
   enum_scans_count: number;
+  mobile_scans_count: number;
   total_chunks: number;
   last_updated?: string;
   vector_store_status: string;
@@ -140,13 +147,37 @@ export async function getSuggestedPrompts(): Promise<SuggestedPrompt[]> {
 
 /**
  * Get analysis context statistics
+ * Fetches from both intelligence backend and Supabase for complete counts
  */
 export async function getContextStats(): Promise<AnalysisContextStats> {
-  const response = await fetch(`${INTELLIGENCE_API_URL}/api/intelligence/context-stats`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch context stats');
-  }
-  return response.json();
+  // Fetch from intelligence backend (RAG stats)
+  const ragStatsPromise = fetch(`${INTELLIGENCE_API_URL}/api/intelligence/context-stats`)
+    .then(res => res.ok ? res.json() : null)
+    .catch(() => null);
+
+  // Fetch from Supabase (persistent database stats)
+  const supabaseStatsPromise = Promise.all([
+    getMobileScanCount().catch(() => 0),
+    getReconScanCount().catch(() => 0),
+    getEnumerationScanCount().catch(() => 0),
+  ]);
+
+  const [ragStats, [mobileScanCount, reconScanCount, enumScanCount]] = await Promise.all([
+    ragStatsPromise,
+    supabaseStatsPromise,
+  ]);
+
+  // Combine stats - use max of both sources to ensure accurate counts
+  // RAG might have in-memory only scans, Supabase has persisted scans
+  return {
+    total_documents: ragStats?.total_documents || 0,
+    recon_scans_count: Math.max(ragStats?.recon_scans_count || 0, reconScanCount),
+    enum_scans_count: Math.max(ragStats?.enum_scans_count || 0, enumScanCount),
+    mobile_scans_count: Math.max(ragStats?.mobile_scans_count || 0, mobileScanCount),
+    total_chunks: ragStats?.total_chunks || 0,
+    last_updated: ragStats?.last_updated,
+    vector_store_status: ragStats?.vector_store_status || 'unknown',
+  };
 }
 
 /**
@@ -230,6 +261,29 @@ export async function initializeVectorStore(): Promise<{ status: string; message
 }
 
 /**
+ * Refresh scans from Supabase into the vector store
+ * Call this to ensure all scans are available for AI analysis
+ */
+export async function refreshScansFromDatabase(): Promise<{
+  success: boolean;
+  scans_loaded: number;
+  total_documents: number;
+  recon_scans: number;
+  enum_scans: number;
+  mobile_scans: number;
+}> {
+  const response = await fetch(`${INTELLIGENCE_API_URL}/api/intelligence/refresh-scans`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to refresh scans from database');
+  }
+
+  return response.json();
+}
+
+/**
  * Get source type display info
  */
 export function getSourceTypeInfo(sourceType: SourceType): { label: string; icon: string } {
@@ -238,6 +292,8 @@ export function getSourceTypeInfo(sourceType: SourceType): { label: string; icon
       return { label: 'Recon Scan', icon: '🔍' };
     case 'enum_scan':
       return { label: 'Enumeration Scan', icon: '🛡️' };
+    case 'mobile_scan':
+      return { label: 'Mobile Scan', icon: '📱' };
     case 'document':
       return { label: 'Document', icon: '📄' };
     case 'knowledge_base':

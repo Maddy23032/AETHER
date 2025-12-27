@@ -4,6 +4,7 @@
  */
 
 export const MOBILE_API_URL = import.meta.env.VITE_MOBILE_API_URL || 'http://localhost:8001';
+export const INTELLIGENCE_API_URL = import.meta.env.VITE_INTELLIGENCE_API_URL || 'http://localhost:8002';
 
 // ==================== Types ====================
 
@@ -198,6 +199,86 @@ export async function getScanHistory(page = 1, pageSize = 10): Promise<{ content
   }
 
   return response.json();
+}
+
+/**
+ * Ingest mobile scan results into Intelligence RAG for AI analysis
+ */
+export async function ingestMobileScanToRAG(
+  fileHash: string,
+  filename: string,
+  report: FullAnalysisResponse
+): Promise<void> {
+  try {
+    // Extract relevant data for RAG
+    const jsonReport = report.json_report || {};
+    const scorecard = report.scorecard || {};
+    const scrapedData = report.scraped_data || {};
+    
+    // Build structured results for RAG
+    const results: Record<string, unknown> = {
+      app_info: {
+        package_name: (jsonReport as Record<string, unknown>).package_name || filename,
+        app_name: (jsonReport as Record<string, unknown>).app_name || filename,
+        version: (jsonReport as Record<string, unknown>).version_name || 'Unknown',
+        platform: (jsonReport as Record<string, unknown>).file_name?.toString().endsWith('.ipa') ? 'iOS' : 'Android',
+        min_sdk: (jsonReport as Record<string, unknown>).min_sdk,
+        target_sdk: (jsonReport as Record<string, unknown>).target_sdk,
+      },
+      security_score: (scorecard as Record<string, unknown>).security_score || (jsonReport as Record<string, unknown>).security_score,
+      grade: (scorecard as Record<string, unknown>).grade,
+      permissions: {
+        dangerous: (jsonReport as Record<string, unknown>).permissions?.dangerous || [],
+        normal: (jsonReport as Record<string, unknown>).permissions?.normal || [],
+      },
+      security_issues: [
+        ...((jsonReport as Record<string, unknown[]>).code_analysis || []).map((issue: Record<string, unknown>) => ({
+          title: issue.title,
+          description: issue.description,
+          severity: issue.severity,
+        })),
+        ...((jsonReport as Record<string, unknown[]>).manifest_analysis || []).map((issue: Record<string, unknown>) => ({
+          title: issue.title,
+          description: issue.description,
+          severity: issue.severity,
+        })),
+      ],
+      malware_analysis: {
+        detected: Object.keys(scrapedData.malware_lookup || {}).length > 0,
+        threats: Object.entries(scrapedData.malware_lookup || {}).map(([k, v]) => `${k}: ${v}`),
+      },
+      urls: scrapedData.urls?.map((u: Record<string, string>) => u.url || Object.values(u)[0]) || [],
+      secrets: (jsonReport as Record<string, unknown[]>).secrets || [],
+    };
+
+    // Call Intelligence ingest endpoint
+    const response = await fetch(`${INTELLIGENCE_API_URL}/api/intelligence/ingest/scan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scan_id: fileHash,
+        scan_type: 'mobile',
+        target: filename,
+        results,
+        metadata: {
+          file_hash: fileHash,
+          scan_completed_at: report.scan_completed_at,
+          pdf_available: report.pdf_available,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('[Mobile] Failed to ingest scan to RAG:', await response.text());
+    } else {
+      console.log('[Mobile] Successfully ingested scan to Intelligence RAG');
+    }
+  } catch (error) {
+    // Don't fail the scan if RAG ingestion fails
+    console.warn('[Mobile] Failed to ingest to Intelligence RAG:', error);
+  }
 }
 
 /**

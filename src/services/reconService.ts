@@ -311,6 +311,32 @@ export const reconService = {
   },
 
   /**
+   * Cancel a running scan by target
+   */
+  async cancelScan(target: string): Promise<{ success: boolean; message: string; cancelled_count: number }> {
+    return apiRequest<{ success: boolean; message: string; cancelled_count: number }>('/api/recon/cancel', {
+      method: 'POST',
+      body: JSON.stringify({ target }),
+    });
+  },
+
+  /**
+   * Cancel all running scans
+   */
+  async cancelAllScans(): Promise<{ success: boolean; message: string; cancelled_count: number }> {
+    return apiRequest<{ success: boolean; message: string; cancelled_count: number }>('/api/recon/cancel-all', {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Get active scans
+   */
+  async getActiveScans(): Promise<{ active_scans: Array<{ scan_id: string; tool: string; target: string; status: string }>; total_count: number }> {
+    return apiRequest<{ active_scans: Array<{ scan_id: string; tool: string; target: string; status: string }>; total_count: number }>('/api/recon/active');
+  },
+
+  /**
    * Run a scan pipeline with multiple tools
    */
   async runScanPipeline(

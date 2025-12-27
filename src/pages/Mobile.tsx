@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload,
@@ -31,6 +31,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { useMobileScanContext } from "@/contexts/ScanContext";
+import { saveMobileScan } from "@/services/supabaseService";
 import {
   checkHealth,
   uploadFile,
@@ -46,6 +48,7 @@ import {
   getSecurityGrade,
   getGradeColor,
   getSeverityVariant,
+  ingestMobileScanToRAG,
   type FullAnalysisResponse,
   type ScrapedData,
   type ScanHistoryItem,
@@ -55,16 +58,30 @@ export default function Mobile() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // State
+  // Use context for persistent state
+  const {
+    isAnalyzing,
+    analysisProgress,
+    progressMessage,
+    report,
+    scanHistory,
+    selectedTab,
+    error,
+    filename,
+    setIsAnalyzing,
+    setAnalysisProgress,
+    setProgressMessage,
+    setReport,
+    setScanHistory,
+    setSelectedTab,
+    setError,
+    setFilename,
+    resetScan,
+  } = useMobileScanContext();
+
+  // Local state (UI only, doesn't need persistence)
   const [isApiHealthy, setIsApiHealthy] = useState<boolean | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisProgress, setAnalysisProgress] = useState(0);
-  const [progressMessage, setProgressMessage] = useState("");
-  const [report, setReport] = useState<FullAnalysisResponse | null>(null);
-  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
-  const [selectedTab, setSelectedTab] = useState("upload");
-  const [error, setError] = useState<string | null>(null);
 
   // Check API health on mount
   useEffect(() => {
@@ -77,18 +94,22 @@ export default function Mobile() {
       }
     };
     checkApiHealthStatus();
-    loadScanHistory();
+    
+    // Only load scan history if not already loaded
+    if (scanHistory.length === 0) {
+      loadScanHistoryFromApi();
+    }
   }, []);
 
   // Load scan history from MobSF
-  const loadScanHistory = async () => {
+  const loadScanHistoryFromApi = useCallback(async () => {
     try {
       const result = await getScanHistory(1, 20);
       setScanHistory(result.content || []);
     } catch (e) {
       console.error("Failed to load scan history:", e);
     }
-  };
+  }, [setScanHistory]);
 
   // Simulate progress updates during analysis
   const simulateProgress = () => {
@@ -136,6 +157,7 @@ export default function Mobile() {
     setAnalysisProgress(0);
     setProgressMessage("Preparing upload...");
     setReport(null);
+    setFilename(file.name);
     setSelectedTab("progress");
 
     const cleanup = simulateProgress();
@@ -149,12 +171,43 @@ export default function Mobile() {
       setReport(result);
       setSelectedTab("results");
       
+      // Ingest scan results into RAG for AI analysis
+      try {
+        await ingestMobileScanToRAG(result.file_hash, file.name, result);
+      } catch (ragError) {
+        console.warn("Failed to ingest mobile scan to RAG:", ragError);
+        // Don't show error to user - RAG ingestion is non-critical
+      }
+      
+      // Save to Supabase for persistence
+      try {
+        await saveMobileScan({
+          file_hash: result.file_hash,
+          filename: file.name,
+          package_name: result.json_report?.package_name || null,
+          app_name: result.json_report?.app_name || null,
+          version: result.json_report?.version_name || null,
+          platform: result.json_report?.app_type?.toLowerCase() === 'ios' ? 'ios' : 'android',
+          security_score: result.scorecard?.security_score || null,
+          grade: result.scorecard?.grade || null,
+          scan_type: 'static',
+          json_report: result.json_report || null,
+          scorecard: result.scorecard || null,
+          permissions: result.json_report?.permissions ? { list: result.json_report.permissions } : null,
+          security_issues: result.scorecard?.security_issues || null,
+        });
+        console.log("Mobile scan saved to Supabase");
+      } catch (dbError) {
+        console.warn("Failed to save mobile scan to Supabase:", dbError);
+        // Don't show error to user - Supabase save is non-critical
+      }
+      
       toast({
         title: "Analysis Complete",
         description: `${file.name} has been analyzed successfully.`,
       });
 
-      loadScanHistory();
+      loadScanHistoryFromApi();
     } catch (e: unknown) {
       const errorMsg = e instanceof Error ? e.message : "Analysis failed";
       setError(errorMsg);
@@ -227,7 +280,7 @@ export default function Mobile() {
   const handleDeleteScan = async (hash: string) => {
     try {
       await deleteScan(hash);
-      setScanHistory((prev) => prev.filter((s) => s.HASH !== hash));
+      setScanHistory(scanHistory.filter((s) => s.HASH !== hash));
       if (report?.file_hash === hash) {
         setReport(null);
         setSelectedTab("upload");
@@ -744,7 +797,7 @@ export default function Mobile() {
           <GlassCard>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Scan History</h3>
-              <Button variant="outline" size="sm" onClick={loadScanHistory}>
+              <Button variant="outline" size="sm" onClick={loadScanHistoryFromApi}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
               </Button>

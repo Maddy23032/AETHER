@@ -15,7 +15,8 @@ from app.routers import (
     theharvester,
     dnsenum,
     subfinder,
-    httpx
+    httpx,
+    scan_control
 )
 
 app = FastAPI(
@@ -46,6 +47,7 @@ app.include_router(theharvester.router, prefix="/api/recon", tags=["theharvester
 app.include_router(dnsenum.router, prefix="/api/recon", tags=["dnsenum"])
 app.include_router(subfinder.router, prefix="/api/recon", tags=["subfinder"])
 app.include_router(httpx.router, prefix="/api/recon", tags=["httpx"])
+app.include_router(scan_control.router, prefix="/api/recon", tags=["scan-control"])
 
 @app.get("/")
 async def root():
