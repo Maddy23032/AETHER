@@ -6,10 +6,15 @@ Port: 8002 (to avoid conflict with recon:8000 and enumeration:8001)
 """
 
 import os
+import warnings
 
 # Set TensorFlow/Keras environment variables BEFORE any imports that might trigger TF loading
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TF info/warning logs
+
+# Suppress protobuf version warnings
+warnings.filterwarnings('ignore', message='.*Protobuf gencode version.*')
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -19,7 +24,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from app.routers import chat, references, ingest
+from app.routers import chat, references, ingest, graph
 from app.services.rag_service import rag_service
 
 
@@ -68,6 +73,7 @@ app.add_middleware(
 app.include_router(chat.router, prefix="/api/intelligence", tags=["Chat"])
 app.include_router(references.router, prefix="/api/intelligence", tags=["References"])
 app.include_router(ingest.router, prefix="/api/intelligence", tags=["Ingestion"])
+app.include_router(graph.router, prefix="/api/intelligence", tags=["Graph Sitemap"])
 
 
 @app.get("/")

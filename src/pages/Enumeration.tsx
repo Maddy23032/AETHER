@@ -3,9 +3,9 @@
  * Integrates with AETHER Scan API for vulnerability scanning with WebSocket support
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Globe, Play, Settings2, Terminal, ExternalLink, StopCircle, FileJson, FileText, FileCode, Download, Save, Search, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { Globe, Play, Settings2, Terminal, ExternalLink, StopCircle, FileJson, FileText, FileCode, Download, Save, Search, Shield, ChevronDown, ChevronUp, Filter, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +85,11 @@ export default function Enumeration() {
 
   // Local UI state
   const [targetUrl, setTargetUrl] = useState(contextTarget || "");
+  
+  // Filter state for results
+  const [filterSeverity, setFilterSeverity] = useState<string>("all");
+  const [filterSearch, setFilterSearch] = useState("");
+  
   const [scanOptions, setScanOptions] = useState({
     deepCrawl: true,
     subdomainEnum: false,
@@ -357,6 +362,43 @@ export default function Enumeration() {
       default: return "info";
     }
   };
+
+  // Filter vulnerabilities based on severity and search
+  const filteredVulnerabilities = useMemo(() => {
+    return vulnerabilities.filter((vuln) => {
+      // Filter by severity
+      if (filterSeverity !== "all" && vuln.severity !== filterSeverity) {
+        return false;
+      }
+      // Filter by search term
+      if (filterSearch) {
+        const searchLower = filterSearch.toLowerCase();
+        return (
+          vuln.name.toLowerCase().includes(searchLower) ||
+          vuln.endpoint.toLowerCase().includes(searchLower) ||
+          vuln.owasp_category?.toLowerCase().includes(searchLower) ||
+          vuln.description?.toLowerCase().includes(searchLower) ||
+          vuln.cwe_id?.toLowerCase().includes(searchLower)
+        );
+      }
+      return true;
+    });
+  }, [vulnerabilities, filterSeverity, filterSearch]);
+
+  // Get counts per severity for filter badges
+  const severityCounts = useMemo(() => {
+    return vulnerabilities.reduce((acc, vuln) => {
+      acc[vuln.severity] = (acc[vuln.severity] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [vulnerabilities]);
+
+  const clearFilters = () => {
+    setFilterSeverity("all");
+    setFilterSearch("");
+  };
+
+  const hasActiveFilters = filterSeverity !== "all" || filterSearch !== "";
 
   // Export handlers
   const handleExport = (format: "json" | "csv" | "html") => {
@@ -734,7 +776,9 @@ export default function Enumeration() {
             <h3 className="text-lg font-semibold">Scan Results</h3>
             {vulnerabilities.length > 0 && (
               <span className="text-sm text-muted-foreground">
-                {vulnerabilities.length} vulnerabilities found
+                {hasActiveFilters 
+                  ? `${filteredVulnerabilities.length} of ${vulnerabilities.length} shown`
+                  : `${vulnerabilities.length} vulnerabilities found`}
               </span>
             )}
           </div>
@@ -762,6 +806,83 @@ export default function Enumeration() {
           </DropdownMenu>
         </div>
 
+        {/* Filter Controls */}
+        {vulnerabilities.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-lg bg-muted/30 border border-border">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filters:</span>
+            </div>
+            
+            {/* Severity Filter Buttons */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant={filterSeverity === "all" ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setFilterSeverity("all")}
+              >
+                All ({vulnerabilities.length})
+              </Button>
+              {["critical", "high", "medium", "low", "info"].map((sev) => {
+                const count = severityCounts[sev] || 0;
+                if (count === 0) return null;
+                return (
+                  <Button
+                    key={sev}
+                    variant={filterSeverity === sev ? "default" : "outline"}
+                    size="sm"
+                    className={`h-7 text-xs capitalize ${
+                      filterSeverity !== sev ? 
+                        sev === "critical" ? "border-red-500/50 text-red-400 hover:bg-red-500/10" :
+                        sev === "high" ? "border-orange-500/50 text-orange-400 hover:bg-orange-500/10" :
+                        sev === "medium" ? "border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10" :
+                        sev === "low" ? "border-blue-500/50 text-blue-400 hover:bg-blue-500/10" :
+                        "border-gray-500/50 text-gray-400 hover:bg-gray-500/10"
+                      : ""
+                    }`}
+                    onClick={() => setFilterSeverity(sev)}
+                  >
+                    {sev} ({count})
+                  </Button>
+                );
+              })}
+            </div>
+            
+            {/* Search Filter */}
+            <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search vulnerabilities..."
+                value={filterSearch}
+                onChange={(e) => setFilterSearch(e.target.value)}
+                className="h-8 pl-8 pr-8 text-sm bg-background"
+              />
+              {filterSearch && (
+                <button
+                  onClick={() => setFilterSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            
+            {/* Clear Filters Button */}
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                onClick={clearFilters}
+              >
+                <X className="w-3 h-3 mr-1" />
+                Clear Filters
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="rounded-lg border border-border overflow-hidden">
           <Table>
             <TableHeader>
@@ -779,8 +900,17 @@ export default function Enumeration() {
                     {isScanning ? "Scanning for vulnerabilities..." : "No vulnerabilities found yet. Start a scan to discover issues."}
                   </TableCell>
                 </TableRow>
+              ) : filteredVulnerabilities.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    No vulnerabilities match your filters.{" "}
+                    <button onClick={clearFilters} className="text-primary hover:underline">
+                      Clear filters
+                    </button>
+                  </TableCell>
+                </TableRow>
               ) : (
-                vulnerabilities.map((vuln) => (
+                filteredVulnerabilities.map((vuln) => (
                   <TableRow key={vuln.id} className="hover:bg-muted/20">
                     <TableCell>
                       <StatusBadge variant={getSeverityVariant(vuln.severity)}>

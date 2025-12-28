@@ -11,6 +11,7 @@ import Enumeration from "@/pages/Enumeration";
 import Mobile from "@/pages/Mobile";
 import Malware from "@/pages/Malware";
 import Chat from "@/pages/Chat";
+import Sitemap from "@/pages/Sitemap";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 
@@ -32,6 +33,7 @@ const App = () => (
               <Route path="/mobile" element={<Mobile />} />
               <Route path="/malware" element={<Malware />} />
               <Route path="/chat" element={<Chat />} />
+              <Route path="/sitemap" element={<Sitemap />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             <Route path="*" element={<NotFound />} />

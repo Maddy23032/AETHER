@@ -9,6 +9,7 @@ import {
   Settings,
   Shield,
   Search,
+  Network,
 } from "lucide-react";
 import {
   Sidebar,
@@ -28,6 +29,7 @@ const navItems = [
   { title: "Enumeration", href: "/enumeration", icon: Search },
   { title: "Mobile Security", href: "/mobile", icon: Smartphone },
   { title: "Malware Lab", href: "/malware", icon: Bug },
+  { title: "Graph Sitemap", href: "/sitemap", icon: Network },
   { title: "Intelligence", href: "/chat", icon: Bot },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
