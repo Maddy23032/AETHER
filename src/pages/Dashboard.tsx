@@ -432,6 +432,13 @@ export default function Dashboard() {
                           borderRadius: "8px",
                           color: "hsl(0, 0%, 98%)",
                         }}
+                        itemStyle={{
+                          color: "hsl(0, 0%, 98%)",
+                        }}
+                        formatter={(value: number, name: string) => [
+                          `${value}`,
+                          <span style={{ color: 'hsl(0, 0%, 98%)' }}>{name}</span>
+                        ]}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -482,6 +489,13 @@ export default function Dashboard() {
                           borderRadius: "8px",
                           color: "hsl(0, 0%, 98%)",
                         }}
+                        itemStyle={{
+                          color: "hsl(0, 0%, 98%)",
+                        }}
+                        formatter={(value: number, name: string) => [
+                          `${value}`,
+                          <span style={{ color: 'hsl(0, 0%, 98%)' }}>{name}</span>
+                        ]}
                       />
                     </PieChart>
                   </ResponsiveContainer>

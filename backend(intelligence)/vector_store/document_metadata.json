@@ -528,5 +528,78 @@
       "file_hash": "5b40b49cd80dbe20ba611d32045b57c6",
       "loaded_from_supabase": true
     }
+  },
+  "45c66985-a0a5-4c4d-b23d-67f70964b304": {
+    "title": "Recon Scan: play.typeracer.com",
+    "source_type": "recon_scan",
+    "chunks": 1,
+    "created_at": "2025-12-27T16:54:55.796327",
+    "metadata": {
+      "scan_id": "c6dcf3ee-5589-4ad1-9918-ed8b63c51af5",
+      "scan_type": "recon",
+      "target": "play.typeracer.com",
+      "loaded_from_supabase": true
+    }
+  },
+  "3f15cb1c-6b0a-4a1f-919e-52f7547901a5": {
+    "title": "Recon Scan: hianime.do",
+    "source_type": "recon_scan",
+    "chunks": 1,
+    "created_at": "2025-12-27T16:54:56.084045",
+    "metadata": {
+      "scan_id": "1a0c705d-2a40-4451-9f07-56e0b3e3fcb9",
+      "scan_type": "recon",
+      "target": "hianime.do",
+      "loaded_from_supabase": true
+    }
+  },
+  "c22d1f2c-fcc9-41c7-8c42-cee445b4b9a0": {
+    "title": "Enumeration Scan: https://play.typeracer.com",
+    "source_type": "enum_scan",
+    "chunks": 2,
+    "created_at": "2025-12-27T16:55:00.382766",
+    "metadata": {
+      "scan_id": "a6a1110f-7af1-46d3-bd60-d6bc3984e57c",
+      "scan_type": "enumeration",
+      "target": "https://play.typeracer.com",
+      "loaded_from_supabase": true
+    }
+  },
+  "cb29e351-4261-4175-8ed1-14ffe5c8ed72": {
+    "title": "Enumeration Scan: https://play.typeracer.com",
+    "source_type": "enum_scan",
+    "chunks": 1,
+    "created_at": "2025-12-27T16:55:00.656138",
+    "metadata": {
+      "scan_id": "07d5fa0c-8321-4ce2-b43c-23878dd0cb1f",
+      "scan_type": "enumeration",
+      "target": "https://play.typeracer.com",
+      "loaded_from_supabase": true
+    }
+  },
+  "371adfc6-09f0-415c-b893-a7bb4e88d33a": {
+    "title": "Enumeration Scan: https://hianime.do",
+    "source_type": "enum_scan",
+    "chunks": 1,
+    "created_at": "2025-12-27T16:55:00.759580",
+    "metadata": {
+      "scan_id": "df59eb3a-7035-421c-b7c5-f9d69f12a53f",
+      "scan_type": "enumeration",
+      "target": "https://hianime.do",
+      "loaded_from_supabase": true
+    }
+  },
+  "59f7902f-8417-46a5-88d6-d790c3149fd9": {
+    "title": "Mobile Scan: dvba.apk",
+    "source_type": "mobile_scan",
+    "chunks": 1,
+    "created_at": "2025-12-27T16:55:01.659345",
+    "metadata": {
+      "scan_id": "02b5279e-7fba-4816-8fee-682be03f31c4",
+      "scan_type": "mobile",
+      "target": "dvba.apk",
+      "file_hash": "5b40b49cd80dbe20ba611d32045b57c6",
+      "loaded_from_supabase": true
+    }
   }
 }
